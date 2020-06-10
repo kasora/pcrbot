@@ -38,6 +38,18 @@ exports.getBox = {
   handler: service.getBox,
 }
 
+exports.addHomework = {
+  label: '上传轴 上传一份轴 例如\n上传轴 12刀哥暴打半血狂暴bishi 二阶段狂暴5王 32w-34w\n3星狼 4星狗 3星黄骑 4星黑骑 3星深月\n109 所有人开技能boss直接死\n108 没死再来一下他必死',
+  alise: ['上传轴', '上传作业'],
+  handler: service.addHomework,
+}
+
+exports.getHomework = {
+  label: '看轴 看轴详情 例如 看轴 12刀哥暴打半血狂暴bishi',
+  alise: ['看轴', '轴', '看轴详情', '作业详情'],
+  handler: service.getHomework,
+}
+
 exports.help = {
   label: '帮助',
   alise: ['帮助', '指令', '指令列表', '指令表'],
