@@ -3,7 +3,7 @@ exports = module.exports = {};
 let service = require('./service');
 
 exports.attack = {
-  label: '出刀 例如 出刀 @kasora 432000',
+  label: '出刀 例如 出刀 200000 也可以帮群员报刀 例如 出刀 @kasora 432000 ',
   alise: ['出刀', '报刀'],
   handler: service.attack,
 };
