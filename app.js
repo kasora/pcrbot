@@ -31,7 +31,9 @@ app.use('/', async (req, res, next) => {
       if (req.body.message.toLocaleLowerCase().startsWith(routeName)) {
         console.log(`${req.body.sender.nickname}: ${req.body.message}`);
 
-        let message = req.body.message.match(new RegExp(`^${routeName}(.*)`))[1];
+        let message = req.body.message.split('\n');
+        message[0] = message[0].match(new RegExp(`^${routeName}(.*)`))[1];
+        message = message.join('\n');
 
         let sender = req.body.sender;
 

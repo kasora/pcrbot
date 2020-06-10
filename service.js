@@ -9,19 +9,18 @@ let utils = require('./utils');
 let config = require('./config');
 let data = require('./data.json');
 
-
 exports.attack = async function (message, sender) {
   let messageList = message.split(' ').filter(el => el);
   let attacker;
   let damage;
   if (messageList.length === 1) {
     attacker = sender;
-    damage = Math.floor(Number(messageList[0]));
+    damage = Math.floor(Number(utils.replaceChinese(messageList[0])));
   } else if (messageList.length === 2) {
     attacker = messageList[0].match(/^\[CQ:at,qq=([0-9]+)\]$/);
     if (!attacker) return;
     attacker = { user_id: attacker[1], group_id: sender.group_id };
-    damage = Math.floor(Number(messageList[1]));
+    damage = Math.floor(Number(utils.replaceChinese(messageList[1])));
   } else {
     return;
   }
@@ -118,6 +117,91 @@ exports.getBox = async function (message, sender) {
   });
 
   return userInfo.roleList.map(userRole => `${userRole.star}星${userRole.mainName}`).join(' ');
+}
+
+exports.addHomework = async function (message, sender) {
+  let messageList = message.split('\n').filter(el => el).map(el => el.split(' ').filter(el => el).join(' '));
+
+  if (messageList.length < 3) return;
+  let baseInfo = messageList[0];
+  let roleListMessage = messageList[1];
+  let timeline = messageList.slice(2);
+
+  let baseInfoList = baseInfo.split(' ');
+  let homeworkBody = {
+    boss: {},
+    date: new Date(),
+    timeline: timeline.join('\n'),
+    submittedBy: sender.user_id,
+    group_id: sender.group_id,
+  };
+
+  if (baseInfoList.length !== 3) return '基础信息格式错误, 请输入 help 上传轴 参照其中的格式进行提交';
+  let teamTime = await utils.getTeamFightTime(sender.group_id);
+  let homework = await mongo.Homework.findOne({
+    group_id: sender.group_id,
+    date: { $gte: teamTime.startTime, $lte: teamTime.endTime },
+    name: baseInfoList[0],
+  });
+  if (homework) return `已存在名为 ${baseInfoList[0]} 的轴`;
+  homeworkBody.name = baseInfoList[0];
+
+  baseInfoList[1] = utils.replaceChinese(baseInfoList[1]);
+  let bossInfo = baseInfoList[1].match(/^([0-9]+)阶段(.*)([0-9]+)王$/);
+  if (!bossInfo) return 'boss 信息不全, 请输入 help 上传轴 参照其中的格式进行提交'
+  homeworkBody.boss.stage = Number(bossInfo[1]);
+  homeworkBody.boss.type = bossInfo[2] ? bossInfo[2] : '普通';
+  homeworkBody.boss.number = Number(bossInfo[3]);
+
+  baseInfoList[2] = utils.replaceChinese(baseInfoList[2]);
+  let damageInfo = baseInfoList[2].split('-').map(damage => Math.floor(Number(damage)));
+  if (damageInfo.length !== 2 || damageInfo.find(damage => isNaN(damage))) return '伤害数值格式错误.'
+  damageInfo = damageInfo.sort((a, b) => a - b);
+  homeworkBody.minDamage = damageInfo[0];
+  homeworkBody.maxDamage = damageInfo[1];
+
+  try {
+    let roleList = utils.getRoleListByRoleMessage(roleListMessage);
+    if (roleList.length !== 5) return '阵容错误.'
+    homeworkBody.roleList = roleList.map(el => ({ star: el.star, roleId: el.id }));
+  } catch (err) {
+    return err.message;
+  }
+
+  await mongo.Homework.insertOne(homeworkBody);
+
+  return `${homeworkBody.boss.type}形态${homeworkBody.boss.stage}阶段${homeworkBody.boss.number}王轴 ${homeworkBody.name} 已成功上传.`
+}
+
+exports.getHomework = async function (message, sender) {
+  let messageList = message.split(' ').filter(el => el);
+
+  if (messageList.length !== 1) return;
+  let teamTime = await utils.getTeamFightTime(sender.group_id);
+  let homeworkInfo = await mongo.Homework.findOne({
+    date: {
+      $gte: teamTime.startTime,
+      $lte: teamTime.endTime,
+    },
+    group_id: sender.group_id,
+    name: messageList[0],
+  });
+  if (!homeworkInfo) return;
+
+  let roleInfoList = utils.getRoleByRoleIdList(homeworkInfo.roleList.map(role => role.roleId));
+  let roleList = homeworkInfo.roleList.map(role => {
+    let tempRole = roleInfoList.find(info => info.id === role.roleId);
+    tempRole.star = role.star;
+    return tempRole;
+  });
+
+  let roleString = roleList.map(userRole => `${userRole.star}星${userRole.mainName}`).join(' ');
+
+  return '\n' + [
+    `${homeworkInfo.name} ${homeworkInfo.boss.stage}阶段${homeworkInfo.boss.type}${homeworkInfo.boss.number}王 ${homeworkInfo.minDamage}-${homeworkInfo.maxDamage}`,
+    roleString,
+    homeworkInfo.timeline,
+  ].join('\n');
 }
 
 exports.help = async function (message, sender) {

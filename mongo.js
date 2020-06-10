@@ -74,13 +74,13 @@ data
 */
 
 /* Homework
-stage
 date
-timeline: [
-  time
-  description
-]
-bossNumber
+timeline
+boss: {
+  number
+  stage
+  type // 普通 狂暴
+}
 roleList:[
   roleId
   star

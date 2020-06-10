@@ -153,6 +153,7 @@ let getTeamFightTime = async (groupId) => {
 
   return { startTime, endTime };
 }
+exports.getTeamFightTime = getTeamFightTime;
 
 let getBossNumber = (hpList, damage) => {
   let hpSum = _.sum(hpList);
@@ -370,5 +371,24 @@ function sleep(millisecond) {
   })
 }
 exports.sleep = sleep;
+
+function replaceChinese(message) {
+  message = message.replace(/一/g, '1');
+  message = message.replace(/二/g, '2');
+  message = message.replace(/三/g, '3');
+  message = message.replace(/四/g, '4');
+  message = message.replace(/五/g, '5');
+  message = message.replace(/六/g, '6');
+  message = message.replace(/七/g, '7');
+  message = message.replace(/八/g, '8');
+  message = message.replace(/九/g, '9');
+  message = message.replace(/十/g, '10');
+  message = message.replace(/([0-9]+)[\.]{0,1}([0-9]*)w/g, (r, $1, $2) => $1 + $2.padEnd(4, '0'));
+  message = message.replace(/([0-9]+)[\.]{0,1}([0-9]*)k/g, (r, $1, $2) => $1 + $2.padEnd(3, '0'));
+  message = message.replace(/([0-9]+)[\.]{0,1}([0-9]*)m/g, (r, $1, $2) => $1 + $2.padEnd(6, '0'));
+
+  return message;
+}
+exports.replaceChinese = replaceChinese;
 
 //#endregion
