@@ -90,7 +90,7 @@ exports.inputBox = async function (message, sender) {
   let roleMessageList = message.split(' ').filter(el => el);
 
   try {
-    let roleList = utils.getRoleListByRoleMessage(roleMessageList.join(' '));
+    let roleList = utils.getRoleListByRoleMessage(utils.replaceChinese(roleMessageList.join(' ')));
     roleList = roleList.map(role => ({ id: role.id, star: role.star }));
     let userInfo = await utils.findOrCreateGroupUser(sender.group_id, sender.user_id);
     await mongo.User.updateOne({ _id: userInfo._id }, { $set: { roleList } });
@@ -120,11 +120,11 @@ exports.getBox = async function (message, sender) {
 }
 
 exports.addHomework = async function (message, sender) {
-  let messageList = message.split('\n').filter(el => el).map(el => el.split(' ').filter(el => el).join(' '));
+  let messageList = message.split('\n').filter(el => el).map(el => el.split(/[\r\n ]/).filter(el => el).join(' '));
 
   if (messageList.length < 3) return;
   let baseInfo = messageList[0];
-  let roleListMessage = messageList[1];
+  let roleListMessage = utils.replaceChinese(messageList[1]);
   let timeline = messageList.slice(2);
 
   let baseInfoList = baseInfo.split(' ');
@@ -143,7 +143,7 @@ exports.addHomework = async function (message, sender) {
     date: { $gte: teamTime.startTime, $lte: teamTime.endTime },
     name: baseInfoList[0],
   });
-  if (homework) return `已存在名为 ${baseInfoList[0]} 的轴`;
+  if (homework && (homework.submittedBy !== sender.user_id || homework.group_id !== sender.group_id)) return `已存在名为 ${baseInfoList[0]} 的轴`;
   homeworkBody.name = baseInfoList[0];
 
   baseInfoList[1] = utils.replaceChinese(baseInfoList[1]);
@@ -163,14 +163,14 @@ exports.addHomework = async function (message, sender) {
   try {
     let roleList = utils.getRoleListByRoleMessage(roleListMessage);
     if (roleList.length !== 5) return '阵容错误.'
-    homeworkBody.roleList = roleList.map(el => ({ star: el.star, roleId: el.id }));
+    homeworkBody.roleList = roleList.map(el => ({ star: el.star, id: el.id }));
   } catch (err) {
     return err.message;
   }
-
+  if (homework) await mongo.Homework.deleteOne({ _id: homework._id });
   await mongo.Homework.insertOne(homeworkBody);
 
-  return `${homeworkBody.boss.type}形态${homeworkBody.boss.stage}阶段${homeworkBody.boss.number}王轴 ${homeworkBody.name} 已成功上传.`
+  return `${homeworkBody.boss.type}形态${homeworkBody.boss.stage}阶段${homeworkBody.boss.number}王轴 ${homeworkBody.name} 已成功${homework ? '替换' : '上传'}.`
 }
 
 exports.getHomework = async function (message, sender) {
@@ -188,9 +188,9 @@ exports.getHomework = async function (message, sender) {
   });
   if (!homeworkInfo) return;
 
-  let roleInfoList = utils.getRoleByRoleIdList(homeworkInfo.roleList.map(role => role.roleId));
+  let roleInfoList = utils.getRoleByRoleIdList(homeworkInfo.roleList.map(role => role.id));
   let roleList = homeworkInfo.roleList.map(role => {
-    let tempRole = roleInfoList.find(info => info.id === role.roleId);
+    let tempRole = roleInfoList.find(info => info.id === role.id);
     tempRole.star = role.star;
     return tempRole;
   });
@@ -202,6 +202,50 @@ exports.getHomework = async function (message, sender) {
     roleString,
     homeworkInfo.timeline,
   ].join('\n');
+}
+
+exports.getMaxDamage = async function (message, sender) {
+  let messageList = message.split(' ').filter(el => el);
+  if (messageList.length > 1) return;
+
+  let boss = {};
+  if (messageList[0]) {
+    let bossInfo = utils.replaceChinese(messageList[0]).match(/^([0-9]+)阶段(.*)([0-9]+)王$/);
+    if (!bossInfo) return 'boss 信息不全, 如果需要筛选, 请依照以下格式 2阶段狂暴5王'
+    boss.stage = Number(bossInfo[1]);
+    if (bossInfo[2]) boss.type = bossInfo[2];
+    boss.number = Number(bossInfo[3]);
+  }
+  let userInfo = await mongo.User.findOne({ group_id: sender.group_id, user_id: sender.user_id });
+  let userBox = userInfo.roleList;
+  if (!userBox || !userBox.length) return '先使用 录入box 命令录入你的box'
+
+  let teamTime = await utils.getTeamFightTime(sender.group_id);
+  let homeworkQuery = {
+    date: {
+      $gte: teamTime.startTime,
+      $lte: teamTime.endTime,
+    },
+    group_id: sender.group_id,
+  };
+  for (let key of Object.keys(boss)) homeworkQuery[`boss.${key}`] = boss[key];
+  let homeworkList = await mongo.Homework.find(homeworkQuery).toArray();
+  if(!homeworkList.length) return '暂时还没有作业可以抄..'
+
+  let maxDamageObject = utils.getBoxMaxDamage(homeworkList, userBox, 3);
+  maxDamageObject.teamList = maxDamageObject.teamList.map(team => {
+    let roleList = utils.getRoleByRoleIdList(team.map(role => role.id));
+    roleList.forEach(role => role.isBorrow = team.find(teamRole => teamRole.id === role.id).isBorrow)
+
+    return roleList.map(role => `${role.mainName}${role.isBorrow ? '(借)' : ''}`).join(' ');
+  })
+  return [
+    `推荐使用以下阵容 预估伤害为 (${maxDamageObject.minDamage}-${maxDamageObject.maxDamage})`
+  ].concat(
+    maxDamageObject.teamList.map((team, index) =>
+      `${maxDamageObject.homeworkList[index].name}(${maxDamageObject.homeworkList[index].minDamage}-${maxDamageObject.homeworkList[index].maxDamage}): ${team}`
+    ),
+  ).join('\n');
 }
 
 exports.help = async function (message, sender) {

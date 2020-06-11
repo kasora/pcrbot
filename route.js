@@ -40,7 +40,7 @@ exports.getBox = {
 
 exports.addHomework = {
   label: '上传轴 上传一份轴 例如\n上传轴 12刀哥暴打半血狂暴bishi 二阶段狂暴5王 32w-34w\n3星狼 4星狗 3星黄骑 4星黑骑 3星深月\n109 所有人开技能boss直接死\n108 没死再来一下他必死',
-  alise: ['上传轴', '上传作业'],
+  alise: ['上传轴', '上传作业', '导入轴'],
   handler: service.addHomework,
 }
 
@@ -48,6 +48,12 @@ exports.getHomework = {
   label: '看轴 看轴详情 例如 看轴 12刀哥暴打半血狂暴bishi',
   alise: ['看轴', '轴', '看轴详情', '作业详情'],
   handler: service.getHomework,
+}
+
+exports.getMaxDamage = {
+  label: '计算攻略, 获取当前box的最优解 可带参筛选boss 例如 计算攻略 二周目狂暴5王',
+  alise: ['计算攻略', '抄作业', '有作业吗', '来个轴'],
+  handler: service.getMaxDamage,
 }
 
 exports.help = {

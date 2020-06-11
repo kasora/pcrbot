@@ -291,14 +291,16 @@ let checkAttack = async (groupId, userId) => {
   endToday.setDate(endToday.getDate() + 1);
 
   let damageList = await mongo.Damage.find({
-    user_id: attacker.user_id,
-    group_id: attacker.group_id,
+    user_id: userId,
+    group_id: groupId,
     type: 'member',
     date: {
       $gte: startToday,
       $lte: endToday,
     },
   }).toArray();
+
+  return damageList;
 }
 exports.checkAttack = checkAttack;
 
@@ -344,6 +346,57 @@ let getRoleListByRoleMessage = (message) => {
 }
 exports.getRoleListByRoleMessage = getRoleListByRoleMessage;
 
+let getBoxMaxDamage = (homeworkList, roleBox, teamNumber) => {
+  let damageOutput = { maxDamage: 0, minDamage: 0, avarageDamage: 0, teamList: [], homeworkList: [] };
+  if (teamNumber === 0) return damageOutput;
+
+  let checkRoleExist = (role, userBox) => {
+    let userRole = userBox.find(boxRole => boxRole.id === role.id);
+    return userRole && userRole.star >= role.star;
+  }
+
+  let updateMaxDamage = (homework, damageObject, borrowRole) => {
+    if (damageObject.avarageDamage + Math.floor((homework.maxDamage + homework.minDamage) / 2) > damageOutput.avarageDamage) {
+      damageOutput = {
+        maxDamage: damageObject.maxDamage + homework.maxDamage,
+        minDamage: damageObject.minDamage + homework.minDamage,
+        avarageDamage: damageObject.avarageDamage + Math.floor((homework.maxDamage + homework.minDamage) / 2),
+        teamList: damageObject.teamList.concat([
+          _.cloneDeep(homework.roleList).map(role => { if (role.id === borrowRole.id) role.isBorrow = true; return role })
+        ]),
+        homeworkList: damageObject.homeworkList.concat([homework]),
+      }
+    }
+  }
+
+  // 检查是否还有能抄的作业
+  let tempHomeworkList = homeworkList.filter(homework => {
+    let tempList = homework.roleList.filter(role => checkRoleExist(role, roleBox));
+    return tempList.length >= 4;
+  });
+  if (!tempHomeworkList.length) return damageOutput;
+
+  for (let i = 0; i < tempHomeworkList.length; i++) {
+    let currectHomework = tempHomeworkList[i];
+    let lastHomeworkList = tempHomeworkList.filter(homework => homework._id !== currectHomework._id);
+    let borrowRole = currectHomework.roleList.find(role => !checkRoleExist(role, roleBox));
+    if (borrowRole) {
+      let lastRoleBox = roleBox.filter(role => !currectHomework.roleList.map(role => role.id).includes(role.id));
+      let thisDamageObject = getBoxMaxDamage(lastHomeworkList, lastRoleBox, teamNumber - 1);
+      updateMaxDamage(currectHomework, thisDamageObject, borrowRole);
+    }
+    for (borrowRole of currectHomework.roleList) {
+      let lastRoleBox = roleBox.filter(role => !currectHomework.roleList.map(role => role.id).includes(role.id));
+      lastRoleBox.push(borrowRole);
+      let thisDamageObject = getBoxMaxDamage(lastHomeworkList, lastRoleBox, teamNumber - 1);
+      updateMaxDamage(currectHomework, thisDamageObject, borrowRole);
+    }
+  }
+
+  return damageOutput;
+}
+exports.getBoxMaxDamage = getBoxMaxDamage;
+
 //#endregion
 
 //#region utils
@@ -375,6 +428,7 @@ exports.sleep = sleep;
 function replaceChinese(message) {
   message = message.replace(/一/g, '1');
   message = message.replace(/二/g, '2');
+  message = message.replace(/两/g, '2');
   message = message.replace(/三/g, '3');
   message = message.replace(/四/g, '4');
   message = message.replace(/五/g, '5');
@@ -383,9 +437,9 @@ function replaceChinese(message) {
   message = message.replace(/八/g, '8');
   message = message.replace(/九/g, '9');
   message = message.replace(/十/g, '10');
-  message = message.replace(/([0-9]+)[\.]{0,1}([0-9]*)w/g, (r, $1, $2) => $1 + $2.padEnd(4, '0'));
-  message = message.replace(/([0-9]+)[\.]{0,1}([0-9]*)k/g, (r, $1, $2) => $1 + $2.padEnd(3, '0'));
-  message = message.replace(/([0-9]+)[\.]{0,1}([0-9]*)m/g, (r, $1, $2) => $1 + $2.padEnd(6, '0'));
+  message = message.replace(/([0-9]+)[\.]{0,1}([0-9]*)[wW]/g, (r, $1, $2) => $1 + $2.padEnd(4, '0'));
+  message = message.replace(/([0-9]+)[\.]{0,1}([0-9]*)[kK]/g, (r, $1, $2) => $1 + $2.padEnd(3, '0'));
+  message = message.replace(/([0-9]+)[\.]{0,1}([0-9]*)[mM]/g, (r, $1, $2) => $1 + $2.padEnd(6, '0'));
 
   return message;
 }
