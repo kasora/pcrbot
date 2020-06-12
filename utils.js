@@ -305,7 +305,7 @@ let checkAttack = async (groupId, userId) => {
 exports.checkAttack = checkAttack;
 
 let whoIs = (nickname) => {
-  let role = roleData.find(role => role.nicknames.includes(nickname));
+  let role = roleData.find(role => role.nicknames.map(el=>el.toLowerCase()).includes(nickname.toLowerCase()));
   if (!role) return;
   return _.cloneDeep(role);
 }
@@ -326,7 +326,8 @@ let getRoleListByRoleMessage = (message) => {
   let errorList = [];
   let roleList = [];
   for (let roleMessage of roleMessageList) {
-    let star = roleMessage.match(/([0-9]+)[\*星]/);
+    roleMessage = roleMessage.replace(/(.{1})[\*星]/, (r, $1) => replaceChinese($1) + '星');
+    let star = roleMessage.match(/(.{1})[\*星]/);
     if (!star) { errorList.push({ data: roleMessage, reason: '星级数据有误' }); continue; }
     star = Math.floor(Number(star[1]));
     if (isNaN(star) || star < 0) { errorList.push({ data: roleMessage, reason: '星级数据有误' }); continue; }

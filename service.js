@@ -90,7 +90,7 @@ exports.inputBox = async function (message, sender) {
   let roleMessageList = message.split(' ').filter(el => el);
 
   try {
-    let roleList = utils.getRoleListByRoleMessage(utils.replaceChinese(roleMessageList.join(' ')));
+    let roleList = utils.getRoleListByRoleMessage(roleMessageList.join(' '));
     roleList = roleList.map(role => ({ id: role.id, star: role.star }));
     let userInfo = await utils.findOrCreateGroupUser(sender.group_id, sender.user_id);
     await mongo.User.updateOne({ _id: userInfo._id }, { $set: { roleList } });
@@ -230,7 +230,7 @@ exports.getMaxDamage = async function (message, sender) {
   };
   for (let key of Object.keys(boss)) homeworkQuery[`boss.${key}`] = boss[key];
   let homeworkList = await mongo.Homework.find(homeworkQuery).toArray();
-  if(!homeworkList.length) return '暂时还没有作业可以抄..'
+  if (!homeworkList.length) return '暂时还没有作业可以抄..'
 
   let maxDamageObject = utils.getBoxMaxDamage(homeworkList, userBox, 3);
   maxDamageObject.teamList = maxDamageObject.teamList.map(team => {
@@ -257,13 +257,24 @@ exports.help = async function (message, sender) {
 
     // 给入参数则强行按参数查询
     if (messageArray.length) {
-      return messageArray.includes(routeName);
+      for (let message of messageArray) {
+        if (routeName === message || routes[routeName].alise.includes(message)) return true;
+      }
+      return false;
     }
-    // 无参数则默认显示全部
-    return !routes[routeName].invisible;
+    return true;
+
   }).map(routeName => {
-    return `${routeName}(${routes[routeName].alise.join(', ')}): ${routes[routeName].label}`;
+    if (!messageArray.length) {
+      return `${routeName}(${routes[routeName].alise.join(', ')}): ${routes[routeName].label}`;
+    } else {
+      return `${routeName}(${routes[routeName].alise.join(', ')}): ${routes[routeName].label} 例如:\n${routes[routeName].example.join('\n')}`;
+    }
   });
 
-  return '\n' + opt.join('\n');
+  if (opt.length) {
+    if (!messageArray.length) return '传入命令名可以查看命令详情\n' + opt.join('\n');
+    return '\n' + opt.join('\n');
+  }
+  return;
 }
