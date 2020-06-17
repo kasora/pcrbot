@@ -206,16 +206,31 @@ exports.getHomework = async function (message, sender) {
 
 exports.getMaxDamage = async function (message, sender) {
   let messageList = message.split(' ').filter(el => el);
-  if (messageList.length > 1) return;
+  if (messageList.length > 2) return;
 
-  let boss = {};
-  if (messageList[0]) {
-    let bossInfo = utils.replaceChinese(messageList[0]).match(/^([0-9]+)阶段(.*)([0-9]+)王$/);
-    if (!bossInfo) return 'boss 信息不全, 如果需要筛选, 请依照以下格式 2阶段狂暴5王'
-    boss.stage = Number(bossInfo[1]);
-    if (bossInfo[2]) boss.type = bossInfo[2];
-    boss.number = Number(bossInfo[3]);
+  let times = 3;
+  let boss = await utils.getBoss(sender.group_id);
+  boss = _.pick(boss, ['stage', 'number', 'type']);
+  for (let message of messageList) {
+    let tempString = utils.replaceChinese(message);
+    let res = tempString.match(/^([0-3]{1})刀{0,1}$/);
+    if (res) times = Number(res[1]);
+
+    res = tempString.match(/^([0-9]+)阶段(.*)([0-9]+)王$/);
+    if (res) {
+      boss.stage = Number(res[1]);
+      if (res[2]) boss.type = res[2];
+      boss.number = Number(res[3]);
+    }
+
+    res = tempString.match(/^(.*)([0-9]+)阶段([0-9]+)王$/);
+    if (res) {
+      if (res[1]) boss.type = res[1];
+      boss.stage = Number(res[2]);
+      boss.number = Number(res[3]);
+    }
   }
+
   let userInfo = await mongo.User.findOne({ group_id: sender.group_id, user_id: sender.user_id });
   let userBox = userInfo.roleList;
   if (!userBox || !userBox.length) return '先使用 录入box 命令录入你的box'
@@ -230,22 +245,37 @@ exports.getMaxDamage = async function (message, sender) {
   };
   for (let key of Object.keys(boss)) homeworkQuery[`boss.${key}`] = boss[key];
   let homeworkList = await mongo.Homework.find(homeworkQuery).toArray();
-  if (!homeworkList.length) return '暂时还没有作业可以抄..'
 
-  let maxDamageObject = utils.getBoxMaxDamage(homeworkList, userBox, 3);
+  let maxDamageObject = utils.getBoxMaxDamage(homeworkList, userBox, times);
   maxDamageObject.teamList = maxDamageObject.teamList.map(team => {
     let roleList = utils.getRoleByRoleIdList(team.map(role => role.id));
     roleList.forEach(role => role.isBorrow = team.find(teamRole => teamRole.id === role.id).isBorrow)
 
     return roleList.map(role => `${role.mainName}${role.isBorrow ? '(借)' : ''}`).join(' ');
   })
+
+  if (!maxDamageObject.teamList.length) return `${boss.stage}阶段${boss.type === '狂暴' ? boss.type : ''}${boss.number}王暂时还没有作业可以抄..`;
   return [
-    `推荐使用以下阵容 预估伤害为 (${maxDamageObject.minDamage}-${maxDamageObject.maxDamage})`
+    `${boss.stage}阶段${boss.type === '狂暴' ? boss.type : ''}${boss.number}王 推荐使用以下阵容 预估伤害为 (${maxDamageObject.minDamage}-${maxDamageObject.maxDamage})`
   ].concat(
     maxDamageObject.teamList.map((team, index) =>
       `${maxDamageObject.homeworkList[index].name}(${maxDamageObject.homeworkList[index].minDamage}-${maxDamageObject.homeworkList[index].maxDamage}): ${team}`
     ),
   ).join('\n');
+}
+
+exports.switchNotification = async function (message, sender) {
+  if (message) return;
+  if (!await utils.isAdmin(sender.group_id, sender.user_id)) return;
+
+
+  let mode = await mongo.Group.findOne({ group_id: sender.group_id });
+  await mongo.Group.updateOne(
+    { group_id: sender.group_id },
+    { $set: { needNotification: !mode.needNotification } }
+  );
+
+  return `活动新闻推送已${!mode.needNotification ? '开启' : '关闭'}`;
 }
 
 exports.help = async function (message, sender) {
@@ -273,7 +303,7 @@ exports.help = async function (message, sender) {
   });
 
   if (opt.length) {
-    if (!messageArray.length) return '传入命令名可以查看命令详情\n' + opt.join('\n');
+    if (!messageArray.length) return '传入命令名可以查看命令详情\n' + opt.join('\n')+'\n\n源码: https://github.com/kasora/pcrbot 欢迎 pr / issue.';
     return '\n' + opt.join('\n');
   }
   return;

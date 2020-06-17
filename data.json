@@ -51,5 +51,14 @@
       2.6,
       3.0
     ]
-  ]
+  ],
+  "stage": {
+    "step": 1,
+    "maxStage": 2,
+    "angryPercent": 50,
+    "angryBossList": [
+      5
+    ],
+    "angryBossMinRound": 2
+  }
 }

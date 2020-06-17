@@ -8,7 +8,8 @@
     "express": "^4.17.1",
     "lodash": "^4.17.15",
     "mongodb": "^3.3.2",
-    "superagent": "^5.1.0"
+    "superagent": "^5.1.0",
+    "xml-js": "^1.6.11"
   },
   "scripts": {
     "start": "node app.js"

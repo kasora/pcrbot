@@ -3,7 +3,7 @@ exports = module.exports = {};
 let service = require('./service');
 
 exports.attack = {
-  label: '出刀 也可以替别人出刀',
+  label: '出刀, 也可以替别人出刀, boss 被击杀时会通知所有挂树玩家',
   example: [
     '出刀 200000',
     '出刀 @kasora 432000',
@@ -78,10 +78,19 @@ exports.getHomework = {
 exports.getMaxDamage = {
   label: '根据已录入的卡池计算出刀最优解, 默认使用当前 boss 状态, 也可传参筛选boss.',
   example: [
-    '计算攻略 二周目狂暴5王 两刀',
+    '计算攻略 2刀 二周目狂暴5王',
   ],
   alise: ['计算攻略', '抄作业', '有作业吗', '来个轴'],
   handler: service.getMaxDamage,
+}
+
+exports.switchNotification = {
+  label: '[管理员限定] 开启/关闭新闻推送',
+  example: [
+    '开启新闻推送',
+  ],
+  alise: ['开启新闻推送', '关闭新闻推送', '开启活动推送', '关闭活动推送'],
+  handler: service.switchNotification,
 }
 
 exports.help = {
