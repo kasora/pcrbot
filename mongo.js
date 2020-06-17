@@ -28,6 +28,7 @@ let mongoConnect = async () => {
     exports.Homework = _db.collection('homework');
     exports.attackQuery = _db.collection('attackQuery');
     exports.Damage = _db.collection('damage');
+    exports.Group = _db.collection('group');
 
     return _db;
   } catch (err) {
@@ -68,7 +69,7 @@ point
 */
 
 /* TempData
-type // team_time: 工会战开始 team_onTree: 挂树
+type // team_time: 工会战开始 team_onTree: 挂树 news: 新闻更新
 date
 data
 */
@@ -90,4 +91,9 @@ maxDamage
 minDamage
 submittedBy
 group_id
+*/
+
+/* Group
+group_id
+needNotification true: 需要新闻推送
 */

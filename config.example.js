@@ -16,4 +16,12 @@ exports = module.exports = {
   adminIdList: [
     222233333,
   ], // 这里填的是额外管理员的 qq 号，支持多个管理员，允许管理员使用管理命令。
+  notification: {
+    ignoreRegExpList: [
+      /恭喜@.*中奖/,
+      /四格漫画更新/,
+      /互动抽奖/
+    ],
+    rssHubUrl: 'https://rsshub.app', // 感谢 RssHub 提供的新闻推送数据
+  }
 }

@@ -6,6 +6,7 @@ let routes = require('./route');
 let mongo = require('./mongo');
 let Express = require('express');
 let handler = require('./handler');
+let notification = require('./notification');
 
 let app = new Express();
 
@@ -74,8 +75,15 @@ async function init() {
   await mongo.prepare();
 
   await utils.syncGroupAdmin();
+  await notification.sendNews();
 }
 init();
+
+setInterval(async () => {
+  await mongo.prepare();
+
+  await notification.sendNews();
+}, 1000 * 60 * 5)
 
 app.listen(config.listenPort, function () {
   console.log(`Listening on port ${config.listenPort} now!`);

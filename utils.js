@@ -35,6 +35,12 @@ const getGroupList = async () => {
   if (agentRes.body.status !== 'ok') {
     console.error(agentRes.body);
   }
+  let groupList = await mongo.Group.find({ group_id: { $in: agentRes.body.data.map(el => el.group_id) } }).toArray();
+  if (groupList.length !== agentRes.body.data.length) {
+    let diffList = _.differenceBy(agentRes.body.data, groupList, el => el.group_id);
+    diffList.forEach(el => el.needNotification = false);
+    await mongo.Group.insertMany(diffList);
+  }
   return agentRes.body.data;
 }
 exports.getGroupList = getGroupList;
@@ -199,19 +205,32 @@ let getBoss = async (groupId) => {
   let dataSum = _.sum(data.boss.map(roundData => _.sum(roundData)));
   if (sumDamage >= dataSum) {
     opt.round = Math.floor((sumDamage - dataSum) / lastRoundSum) + data.boss.length + 1;
-    return Object.assign(opt, getBossNumber(
+    Object.assign(opt, getBossNumber(
       data.boss[data.boss.length - 1],
       sumDamage - dataSum - (opt.round - 1 - data.boss.length) * lastRoundSum
     ))
+  } else {
+    opt.round = 1;
+    while (1) {
+      let nowRoundSum = _.sum(data.boss[opt.round - 1]);
+      if (sumDamage >= nowRoundSum) sumDamage -= nowRoundSum;
+      else { 
+        Object.assign(opt, getBossNumber(data.boss[opt.round - 1], sumDamage));
+        break;
+      }
+      opt.round++;
+    }
   }
 
-  opt.round = 1;
-  while (1) {
-    let nowRoundSum = _.sum(data.boss[opt.round - 1]);
-    if (sumDamage >= nowRoundSum) sumDamage -= nowRoundSum;
-    else return Object.assign(opt, getBossNumber(data.boss[opt.round - 1], sumDamage));
-    opt.round++;
-  }
+  let bossHp = data.boss[opt.round >= data.boss.length ? data.boss.length - 1 : opt.round - 1][opt.number - 1];
+
+  opt.stage = opt.round / data.stage.step > data.stage.maxStage ? data.stage.maxStage : Math.floor(opt.round / data.stage.step);
+  opt.type = opt.round < data.stage.angryBossMinRound
+    || !data.stage.angryBossList.includes(opt.number)
+    || opt.hp > Math.floor(bossHp * data.stage.angryPercent / 100)
+    ? '普通' : '狂暴';
+
+  return opt;
 }
 exports.getBoss = getBoss;
 
@@ -305,7 +324,7 @@ let checkAttack = async (groupId, userId) => {
 exports.checkAttack = checkAttack;
 
 let whoIs = (nickname) => {
-  let role = roleData.find(role => role.nicknames.includes(nickname));
+  let role = roleData.find(role => role.nicknames.map(el => el.toLowerCase()).includes(nickname.toLowerCase()));
   if (!role) return;
   return _.cloneDeep(role);
 }
