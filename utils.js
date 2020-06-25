@@ -1,5 +1,33 @@
 exports = module.exports = {};
 
+//#region 类型定义
+
+/**
+ * @typedef {Object} BossInfo
+ * @property {Number} stage boss 阶段
+ * @property {String} type boss 状态
+ * @property {Number} round boss 轮数
+ * @property {Number} number boss 编号
+ * @property {Number} hp boss 剩余血量
+ */
+
+/**
+ * @typedef {Object} BossData
+ * @property {Number} round boss 轮数
+ * @property {Number} number boss 编号
+ * @property {Number} hp boss 剩余血量
+ */
+
+/**
+ * @typedef {Object} Role
+ * @property {Array<String>} nicknames 别名数组
+ * @property {String} mainName 角色名
+ * @property {String} jpName 日文名
+ * @property {String} id 角色 id
+ */
+
+//#endregion
+
 let mongo = require('./mongo');
 let config = require('./config');
 let data = require('./data.json');
@@ -112,6 +140,8 @@ let findOrCreateGroupUser = async (groupId, userId) => {
   });
   if (!userInfo) {
     let tempInfo = await getGroupUserInfo(groupId, userId);
+    tempInfo.isAdmin = tempInfo.role === 'admin' || tempInfo.role === 'owner';
+    tempInfo.isTeamMember = false;
     await mongo.User.insertOne(tempInfo);
     return findOrCreateGroupUser(groupId, userId);
   }
@@ -120,7 +150,7 @@ let findOrCreateGroupUser = async (groupId, userId) => {
 exports.findOrCreateGroupUser = findOrCreateGroupUser;
 
 let setGroupAdmin = async (groupId, userId, status) => {
-  let memberInfo = await findOrCreateGroupUser(groupId, userId);
+  await findOrCreateGroupUser(groupId, userId);
   await mongo.User.updateOne(
     { group_id: groupId, user_id: userId },
     { $set: { isAdmin: status } }
@@ -184,7 +214,7 @@ let getGroupDamage = async (groupId) => {
       $lte: endTime,
     },
     group_id: groupId,
-  }).toArray();
+  }).sort({ date: 1 }).toArray();
 
   let sumDamage = 0;
   let damageObject;
@@ -196,6 +226,12 @@ let getGroupDamage = async (groupId) => {
   return sumDamage;
 }
 
+/**
+ * 获取指定群的 boss 状态
+ * 
+ * @param {Number} groupId 群号
+ * @returns {Promise<BossInfo>} boss 状态
+ */
 let getBoss = async (groupId) => {
   let sumDamage = await getGroupDamage(groupId);
   let lastRoundSum = _.sum(data.boss[data.boss.length - 1]);
@@ -214,7 +250,7 @@ let getBoss = async (groupId) => {
     while (1) {
       let nowRoundSum = _.sum(data.boss[opt.round - 1]);
       if (sumDamage >= nowRoundSum) sumDamage -= nowRoundSum;
-      else { 
+      else {
         Object.assign(opt, getBossNumber(data.boss[opt.round - 1], sumDamage));
         break;
       }
@@ -234,6 +270,14 @@ let getBoss = async (groupId) => {
 }
 exports.getBoss = getBoss;
 
+/**
+ * 获取指定 boss 状态需要伤害总额
+ * 
+ * @param {Number} round 轮数
+ * @param {Number} number 编号
+ * @param {Number} hp 剩余血量
+ * @returns {Number}
+ */
 let getBossDamage = (round, number, hp) => {
   let sumDamage = 0;
   let dataSum = _.sum(data.boss.map(roundData => _.sum(roundData)));
@@ -253,8 +297,18 @@ let getBossDamage = (round, number, hp) => {
   return sumDamage;
 }
 
+/**
+ * 设置指定群的boss状态
+ * 
+ * @param {Number} groupId 群号
+ * @param {Number} round 轮数
+ * @param {Number} number boss 编号
+ * @param {Number} hp 剩余血量
+ * @returns
+ */
 let setBoss = async (groupId, round, number, hp) => {
   let damage = getBossDamage(round, number, hp);
+  if (isNaN(damage) || damage < 0) throw new Error('超出 boss 血量范围');
 
   return await mongo.Damage.insertOne({
     type: 'admin',
@@ -309,20 +363,27 @@ let checkAttack = async (groupId, userId) => {
   let endToday = new Date(startToday);
   endToday.setDate(endToday.getDate() + 1);
 
-  let damageList = await mongo.Damage.find({
-    user_id: userId,
+  let query = {
     group_id: groupId,
-    type: 'member',
+    type: { $ne: 'admin' },
     date: {
       $gte: startToday,
       $lte: endToday,
     },
-  }).toArray();
+  };
+  if (userId) query.userId = userId;
+  let damageList = await mongo.Damage.find(query).toArray();
 
   return damageList;
 }
 exports.checkAttack = checkAttack;
 
+/**
+ * 根据别名获取角色信息
+ * 
+ * @param {String} nickname 角色别名
+ * @returns {Role} 角色信息
+ */
 let whoIs = (nickname) => {
   let role = roleData.find(role => role.nicknames.map(el => el.toLowerCase()).includes(nickname.toLowerCase()));
   if (!role) return;
@@ -445,6 +506,12 @@ function sleep(millisecond) {
 }
 exports.sleep = sleep;
 
+/**
+ * 替换中文字符到数字
+ * 
+ * @param {String} message 
+ * @returns {String}
+ */
 function replaceChinese(message) {
   message = message.replace(/一/g, '1');
   message = message.replace(/二/g, '2');

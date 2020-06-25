@@ -2,11 +2,22 @@
 
 exports = module.exports = {};
 
+//#region 类型定义
+
+/**
+ * @typedef Sender 发送者
+ * @property {Number} [age] 年龄
+ * @property {String} nickname 昵称
+ * @property {Number} user_id QQ 号
+ * @property {Number} group_id 群号
+ */
+
+//#endregion
+
 let _ = require('lodash');
 
 let mongo = require('./mongo');
 let utils = require('./utils');
-let config = require('./config');
 let data = require('./data.json');
 
 exports.attack = async function (message, sender) {
@@ -17,9 +28,9 @@ exports.attack = async function (message, sender) {
     attacker = sender;
     damage = Math.floor(Number(utils.replaceChinese(messageList[0])));
   } else if (messageList.length === 2) {
-    attacker = messageList[0].match(/^\[CQ:at,qq=([0-9]+)\]$/);
+    attacker = messageList[0].match(/^\[cq:at,qq=([0-9]+)\]$/);
     if (!attacker) return;
-    attacker = { user_id: attacker[1], group_id: sender.group_id };
+    attacker = await mongo.User.findOne({ user_id: Number(attacker[1]), group_id: sender.group_id });
     damage = Math.floor(Number(utils.replaceChinese(messageList[1])));
   } else {
     return;
@@ -39,12 +50,17 @@ exports.attack = async function (message, sender) {
     damage: damage,
     point: eff * damage,
     date: new Date(),
+    bossInfo,
   });
   bossInfo = await utils.getBoss(attacker.group_id);
 
+  // 尾刀时提醒挂树成员
   if (type === 'tailAttack') await utils.checkTree(attacker.group_id);
 
-  return `${messageList.length === 2 ? `帮${messageList[0]}` : ''}${type === 'tailAttack' ? '尾刀' : '出刀'}完成 当前boss: ${bossInfo.round}周目${bossInfo.number}王 剩余${bossInfo.hp}血.`
+  // 将其自动置为工会成员
+  await mongo.User.updateOne({ user_id: attacker.user_id, group_id: sender.group_id }, { $set: { isTeamMember: true } });
+
+  return `${messageList.length === 2 ? `帮[CQ:at,qq=${attacker.user_id}]` : ''}${type === 'tailAttack' ? '尾刀' : '出刀'}完成 当前boss: ${bossInfo.round}周目${bossInfo.number}王 剩余${bossInfo.hp}血.`
 }
 
 exports.onTree = async function (message, sender) {
@@ -60,12 +76,15 @@ exports.onTree = async function (message, sender) {
       ...bossInfo,
     }
   });
+
+  // 将其自动置为工会成员
+  await mongo.User.updateOne({ user_id: sender.user_id, group_id: sender.group_id }, { $set: { isTeamMember: true } });
+
   return 'ok, 等boss没了我群里@你.'
 }
 
 exports.startTeamFight = async function (message, sender) {
   if (message) return;
-  if (!await utils.isAdmin(sender.group_id, sender.user_id)) return;
 
   await mongo.TempData.insertOne({
     type: 'team_time',
@@ -76,6 +95,51 @@ exports.startTeamFight = async function (message, sender) {
   });
 
   return 'ok';
+}
+
+exports.dailyReport = async function (message, sender) {
+  if (message) return;
+  let attackList = await utils.checkAttack(sender.group_id);
+
+  let attackObject = {};
+  for (let attackInfo of attackList) {
+    if (attackObject[attackInfo.user_id]) attackObject[attackInfo.user_id].push(attackInfo);
+    else attackObject[attackInfo.user_id] = [attackInfo];
+  }
+
+  let attackInfoList = [];
+  let userList = await mongo.User.find({ group_id: sender.group_id, isTeamMember: true }).toArray();
+  if (!userList.length) return '尚无工会成员出刀';
+  for (let user_id of Object.keys(attackObject)) {
+    let userInfo = userList.find(el => el.user_id === Number(user_id));
+
+    let dailyAttackInfo = {
+      user_id: userInfo.user_id,
+      username: userInfo.card || nickname,
+      memberAttackList: attackObject[user_id].filter(el => el.type === 'member'),
+      tailAttackList: attackObject[user_id].filter(el => el.type === 'tailAttack'),
+      point: attackObject[user_id].reduce((a, b) => a + b.point, 0),
+      damage: attackObject[user_id].reduce((a, b) => a + b.damage, 0),
+    }
+    dailyAttackInfo.memberAttackTimes = dailyAttackInfo.memberAttackList.length;
+    dailyAttackInfo.tailAttackTimes = dailyAttackInfo.tailAttackList.length;
+    dailyAttackInfo.leftTimes = 3 - dailyAttackInfo.memberAttackTimes;
+
+    attackInfoList.push(dailyAttackInfo)
+  }
+
+  return [
+    `当前工会成员共有${userList.length}人`,
+    ...attackInfoList.sort((a, b) => b.point - a.point).map(dailyAttackInfo => `${dailyAttackInfo.username}: ${dailyAttackInfo.memberAttackTimes}刀${dailyAttackInfo.tailAttackTimes ? `与${dailyAttackInfo.tailAttackTimes}刀尾刀` : ''} 共计伤害: ${dailyAttackInfo.damage} 共计得分: ${dailyAttackInfo.point}`),
+    '以下成员没有出完今日的刀',
+    ...userList.filter(user => {
+      let attackInfo = attackInfoList.find(info => info.user_id === user.user_id);
+      return !attackInfo || attackInfo.leftTimes;
+    }).map(user => {
+      let attackInfo = attackInfoList.find(info => info.user_id === user.user_id);
+      return `[CQ:at,qq=${user.user_id}]: 剩余${attackInfo ? attackInfo.leftTimes : 3}刀`
+    }),
+  ].join('\n');
 }
 
 exports.who = async function (message, sender) {
@@ -99,6 +163,40 @@ exports.inputBox = async function (message, sender) {
   } catch (err) {
     return err.message;
   }
+}
+
+exports.getBoss = async function (message, sender) {
+  if (message) return;
+  let bossInfo = await utils.getBoss(sender.group_id);
+
+  return `${bossInfo.stage}阶段${bossInfo.type === '狂暴' ? '狂暴' : ''} ${bossInfo.round}周目${bossInfo.number}王 剩余血量: ${bossInfo.hp}`;
+}
+
+exports.setBoss = async function (message, sender) {
+  let { endTime } = await utils.getTeamFightTime(sender.group_id);
+  if (new Date() > endTime) return '公会战已结束.'
+
+  message = utils.replaceChinese(message).toLowerCase();
+
+  let bossInfo = await utils.getBoss(sender.group_id);
+
+  let regExpListObject = {
+    round: [/([ 0-9]+)周目/],
+    number: [/([ 0-9]+)王/, /([ 0-9]+)号boss/, /([ 0-9]+)号/],
+    hp: [/剩余血量:([ 0-9]+)/, /剩余血量；([ 0-9]+)/, /血量；([ 0-9]+)/, /血量:([ 0-9]+)/, /血量([ 0-9]+)/, /剩余血量([ 0-9]+)/],
+  }
+
+  for (let key of Object.keys(regExpListObject)) {
+    for (let regExp of regExpListObject[key]) {
+      let tempValue = message.match(regExp);
+      if (tempValue) bossInfo[key] = Number(tempValue[1]);
+    }
+  }
+
+  await utils.setBoss(sender.group_id, bossInfo.round, bossInfo.number, bossInfo.hp);
+
+  bossInfo = await utils.getBoss(sender.group_id);
+  return `${bossInfo.stage}阶段${bossInfo.type === '狂暴' ? '狂暴' : ''} ${bossInfo.round}周目${bossInfo.number}王 剩余血量: ${bossInfo.hp}`;
 }
 
 exports.getBox = async function (message, sender) {
@@ -266,8 +364,6 @@ exports.getMaxDamage = async function (message, sender) {
 
 exports.switchNotification = async function (message, sender) {
   if (message) return;
-  if (!await utils.isAdmin(sender.group_id, sender.user_id)) return;
-
 
   let mode = await mongo.Group.findOne({ group_id: sender.group_id });
   await mongo.Group.updateOne(
@@ -296,14 +392,14 @@ exports.help = async function (message, sender) {
 
   }).map(routeName => {
     if (!messageArray.length) {
-      return `${routeName}(${routes[routeName].alise.join(', ')}): ${routes[routeName].label}`;
+      return `${routes[routeName].alise[0]}: ${routes[routeName].label}`;
     } else {
-      return `${routeName}(${routes[routeName].alise.join(', ')}): ${routes[routeName].label} 例如:\n${routes[routeName].example.join('\n')}`;
+      return `${routes[routeName].label} 例如:\n${routes[routeName].example.join('\n')}\n\n等效的别名有: ${routes[routeName].alise.join(', ')}`;
     }
   });
 
   if (opt.length) {
-    if (!messageArray.length) return '传入命令名可以查看命令详情\n' + opt.join('\n')+'\n\n源码: https://github.com/kasora/pcrbot 欢迎 pr / issue.';
+    if (!messageArray.length) return 'help+命令名可以查看对应的命令详情\n' + opt.join('\n') + `\n\n源码: https://github.com/kasora/pcrbot 欢迎 pr / issue.\n当前bot版本: ${process.env.version}`;
     return '\n' + opt.join('\n');
   }
   return;

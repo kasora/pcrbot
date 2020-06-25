@@ -1,6 +1,7 @@
 exports = module.exports = {};
 
 let service = require('./service');
+let utils = require('./utils');
 
 exports.attack = {
   label: '出刀, 也可以替别人出刀, boss 被击杀时会通知所有挂树玩家',
@@ -17,9 +18,17 @@ exports.startTeamFight = {
   example: [
     '工会战开始',
   ],
-  alise: ['工会战开始'],
+  alise: ['工会战开始', '开始工会战', '公会战开始', '开始公会战'],
+  admin: true,
   handler: service.startTeamFight,
 };
+
+exports.dailyReport = {
+  label: '[管理员限定] 获取当日的战报',
+  alise: ['今日战报', '今日报告'],
+  admin: true,
+  handler: service.dailyReport,
+}
 
 exports.onTree = {
   label: '挂树 在当前 boss 被击杀时会在群里at所有挂树群员',
@@ -47,6 +56,24 @@ exports.inputBox = {
   alise: ['录入box', '导入box', '录入卡池', '导入卡池', '导入卡组', '录入卡组'],
   handler: service.inputBox,
 };
+
+exports.getBoss = {
+  label: '获取 Boss 当前状态',
+  example: [
+    '查看boss',
+  ],
+  alise: ['查看boss'],
+  handler: service.getBoss,
+}
+
+exports.setBoss = {
+  label: '设定 boss 状态',
+  example: [
+    '设定boss 3周目5王 血量40',
+  ],
+  alise: ['设定boss', '修改boss状态', '修改boss','设定boss状态'],
+  handler: service.setBoss,
+}
 
 exports.getBox = {
   label: '获取自己已录入卡池',
@@ -90,6 +117,7 @@ exports.switchNotification = {
     '开启新闻推送',
   ],
   alise: ['开启新闻推送', '关闭新闻推送', '开启活动推送', '关闭活动推送'],
+  admin: true,
   handler: service.switchNotification,
 }
 
@@ -105,6 +133,15 @@ exports.help = {
 exports.codeMap = {};
 Object.keys(exports).filter(key => key !== 'codeMap').forEach(key => {
   let handler = exports[key].handler;
+
+  // 管理员限定接口预处理
+  if (exports[key].admin) {
+    handler = async (message, sender) => {
+      if (!await utils.isAdmin(sender.group_id, sender.user_id)) return;
+      return exports[key].handler(message, sender);
+    }
+  }
+
   exports.codeMap[key] = handler;
   exports[key].alise.forEach(alise => exports.codeMap[alise] = handler);
 });
