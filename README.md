@@ -23,7 +23,9 @@ tips: 如果文档不匹配请使用 `help` 指令查看所有支持的指令
 - `npm start`
 - 将你的 bot 拉入群，输入 `help` 查看是否正常运行
 
-tips: `coolq` 可以参照 `docker_reboot.example.sh` 进行 docker 搭建
+tips: 
+- `coolq` 可以参照 `docker_reboot.example.sh` 进行 docker 搭建
+- 可以使用 [pm2](https://github.com/Unitech/pm2) 来使 bot 后台运行. 参考脚本: `npm i pm2 -g && pm2 start npm --name "pcr" -- start`
 
 ## 开源协议
 LGPL-3.0

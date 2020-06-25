@@ -5,3 +5,4 @@ package-lock.json
 docker_reboot.sh
 
 node_modules
+current_version

@@ -1,10 +1,12 @@
 'use strict'
 
+let Express = require('express');
+let fs = require('fs');
+
 let utils = require('./utils');
 let config = require('./config');
 let routes = require('./route');
 let mongo = require('./mongo');
-let Express = require('express');
 let handler = require('./handler');
 let notification = require('./notification');
 
@@ -33,7 +35,7 @@ app.use('/', async (req, res, next) => {
         console.log(`${req.body.sender.nickname}: ${req.body.message}`);
 
         let message = req.body.message.split('\n');
-        message[0] = message[0].match(new RegExp(`^${routeName}(.*)`))[1];
+        message[0] = message[0].toLocaleLowerCase().match(new RegExp(`^${routeName}(.*)`))[1];
         message = message.join('\n');
 
         let sender = req.body.sender;
@@ -66,6 +68,9 @@ app.use('/', async (req, res, next) => {
     if (req.body.notice_type === 'group_admin') {
       await utils.setGroupAdmin(req.body.group_id, req.body.user_id, req.body.sub_type === 'set');
     }
+    if (req.body.notice_type === 'group_increase') {
+      await utils.findOrCreateGroupUser(req.body.group_id, req.body.user_id);
+    }
   }
 
   return res.send({ status: 'ok' });
@@ -73,6 +78,10 @@ app.use('/', async (req, res, next) => {
 
 async function init() {
   await mongo.prepare();
+
+  let version = require('./package.json').version;
+  fs.writeFileSync('./current_version', version);
+  process.env.version = version
 
   await utils.syncGroupAdmin();
   await notification.sendNews();
