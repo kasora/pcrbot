@@ -1,6 +1,6 @@
 {
   "name": "pcrbot",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "repository": "kasora/pcrbot",
   "description": "该项目旨在创建一个功能精简的 bot, 适用于小型工会使用.",
   "main": "app.js",

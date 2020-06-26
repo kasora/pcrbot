@@ -115,7 +115,7 @@ exports.dailyReport = async function (message, sender) {
 
     let dailyAttackInfo = {
       user_id: userInfo.user_id,
-      username: userInfo.card || nickname,
+      username: userInfo.card || userInfo.nickname,
       memberAttackList: attackObject[user_id].filter(el => el.type === 'member'),
       tailAttackList: attackObject[user_id].filter(el => el.type === 'tailAttack'),
       point: attackObject[user_id].reduce((a, b) => a + b.point, 0),
