@@ -31,8 +31,9 @@ let migration = async () => {
     await todoItem.script();
     console.log(`脚本: ${todoItem.description} 已执行完毕.`)
   }
-
-  console.log('所有脚本都已执行完毕.')
+  if (todoList.length) {
+    console.log('所有脚本都已执行完毕.')
+  }
   process.exit();
 }
 migration();

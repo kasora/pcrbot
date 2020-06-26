@@ -25,7 +25,9 @@ app.use('/', async (req, res, next) => {
     // bot 不接受私聊
     if (req.body.message_type === 'private') return res.send({});
     req.body.sender.group_id = req.body.group_id;
-    for (let routeName of Object.keys(routes.codeMap)) {
+
+    let routeNameList = Object.keys(routes.codeMap).sort((a, b) => b.length - a.length);
+    for (let routeName of routeNameList) {
       let handler = routes.codeMap[routeName];
       // 不分大小写
       routeName = routeName.toLocaleLowerCase();

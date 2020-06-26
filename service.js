@@ -63,6 +63,16 @@ exports.attack = async function (message, sender) {
   return `${messageList.length === 2 ? `帮[CQ:at,qq=${attacker.user_id}]` : ''}${type === 'tailAttack' ? '尾刀' : '出刀'}完成 当前boss: ${bossInfo.round}周目${bossInfo.number}王 剩余${bossInfo.hp}血.`
 }
 
+exports.deleteAttack = async function (message, sender) {
+  if (message) return;
+  let attackList = await mongo.Damage.find({ group_id: sender.group_id, user_id: sender.user_id }).sort({ date: -1 }).limit(1).toArray();
+
+  if (attackList.length) {
+    await mongo.Damage.deleteOne({ _id: attackList[0]._id });
+    return 'ok';
+  }
+}
+
 exports.onTree = async function (message, sender) {
   if (message) return;
   let bossInfo = await utils.getBoss(sender.group_id);
@@ -93,6 +103,17 @@ exports.startTeamFight = async function (message, sender) {
       group_id: sender.group_id,
     },
   });
+
+  return 'ok';
+}
+
+exports.exitTeam = async function (message, sender) {
+  if (message) return;
+
+  await mongo.User.updateOne(
+    { group_id: sender.group_id, user_id: sender.user_id },
+    { $set: { isTeamMember: false } },
+  );
 
   return 'ok';
 }
@@ -128,17 +149,19 @@ exports.dailyReport = async function (message, sender) {
     attackInfoList.push(dailyAttackInfo)
   }
 
+  let leftAttackList = userList.filter(user => {
+    let attackInfo = attackInfoList.find(info => info.user_id === user.user_id);
+    return !attackInfo || attackInfo.leftTimes;
+  }).map(user => {
+    let attackInfo = attackInfoList.find(info => info.user_id === user.user_id);
+    return `[CQ:at,qq=${user.user_id}]: 剩余${attackInfo ? attackInfo.leftTimes : 3}刀`
+  });
+
   return [
     `当前工会成员共有${userList.length}人`,
     ...attackInfoList.sort((a, b) => b.point - a.point).map(dailyAttackInfo => `${dailyAttackInfo.username}: ${dailyAttackInfo.memberAttackTimes}刀${dailyAttackInfo.tailAttackTimes ? `与${dailyAttackInfo.tailAttackTimes}刀尾刀` : ''} 共计伤害: ${dailyAttackInfo.damage} 共计得分: ${dailyAttackInfo.point}`),
-    '以下成员没有出完今日的刀',
-    ...userList.filter(user => {
-      let attackInfo = attackInfoList.find(info => info.user_id === user.user_id);
-      return !attackInfo || attackInfo.leftTimes;
-    }).map(user => {
-      let attackInfo = attackInfoList.find(info => info.user_id === user.user_id);
-      return `[CQ:at,qq=${user.user_id}]: 剩余${attackInfo ? attackInfo.leftTimes : 3}刀`
-    }),
+    leftAttackList.length ? '以下成员没有出完今日的刀' : '',
+    ...leftAttackList,
   ].join('\n');
 }
 
@@ -183,7 +206,7 @@ exports.setBoss = async function (message, sender) {
   let regExpListObject = {
     round: [/([ 0-9]+)周目/],
     number: [/([ 0-9]+)王/, /([ 0-9]+)号boss/, /([ 0-9]+)号/],
-    hp: [/剩余血量:([ 0-9]+)/, /剩余血量；([ 0-9]+)/, /血量；([ 0-9]+)/, /血量:([ 0-9]+)/, /血量([ 0-9]+)/, /剩余血量([ 0-9]+)/],
+    hp: [/剩余血量:([ 0-9]+)/, /剩余血量；([ 0-9]+)/, /血量；([ 0-9]+)/, /血量:([ 0-9]+)/, /血量([ 0-9]+)/, /剩余血量([ 0-9]+)/, /([ 0-9]+)血/],
   }
 
   for (let key of Object.keys(regExpListObject)) {

@@ -13,6 +13,15 @@ exports.attack = {
   handler: service.attack,
 };
 
+exports.deleteAttack = {
+  label: '撤销出刀',
+  example: [
+    '撤销出刀'
+  ],
+  alise: ['撤销出刀'],
+  handler: service.deleteAttack,
+};
+
 exports.startTeamFight = {
   label: '[管理员限定] 开始一次公会战, 默认将在 8 天后结束',
   example: [
@@ -21,6 +30,15 @@ exports.startTeamFight = {
   alise: ['工会战开始', '开始工会战', '公会战开始', '开始公会战'],
   admin: true,
   handler: service.startTeamFight,
+};
+
+exports.exitTeam = {
+  label: '退出公会',
+  example: [
+    '退出公会',
+  ],
+  alise: ['退出公会'],
+  handler: service.exitTeam,
 };
 
 exports.dailyReport = {
@@ -62,7 +80,7 @@ exports.getBoss = {
   example: [
     '查看boss',
   ],
-  alise: ['查看boss'],
+  alise: ['查看boss', '查看boss状态', '获取boss', '获取boss状态'],
   handler: service.getBoss,
 }
 
@@ -71,7 +89,7 @@ exports.setBoss = {
   example: [
     '设定boss 3周目5王 血量40',
   ],
-  alise: ['设定boss', '修改boss状态', '修改boss','设定boss状态'],
+  alise: ['设定boss', '修改boss状态', '修改boss', '设定boss状态', '设置boss', '设置boss状态'],
   handler: service.setBoss,
 }
 
@@ -131,6 +149,7 @@ exports.help = {
 };
 
 exports.codeMap = {};
+let repeatRouteNameList = [];
 Object.keys(exports).filter(key => key !== 'codeMap').forEach(key => {
   let handler = exports[key].handler;
 
@@ -143,5 +162,14 @@ Object.keys(exports).filter(key => key !== 'codeMap').forEach(key => {
   }
 
   exports.codeMap[key] = handler;
-  exports[key].alise.forEach(alise => exports.codeMap[alise] = handler);
+  exports[key].alise.forEach(alise => {
+    if (exports.codeMap[alise]) {
+      repeatRouteNameList.push(alise);
+    }
+    exports.codeMap[alise] = handler;
+  });
 });
+if (repeatRouteNameList.length) {
+  console.error('以下指令的别名冲突:\n' + Array.from(new Set(repeatRouteNameList)).join('\n'))
+  process.exit();
+}
