@@ -14,11 +14,12 @@ exports.attack = {
 };
 
 exports.deleteAttack = {
-  label: '撤销出刀',
+  label: '撤销出刀, 管理员可以撤销别人的出刀',
   example: [
-    '撤销出刀'
+    '撤销出刀',
+    '撤销出刀 @kasora'
   ],
-  alise: ['撤销出刀'],
+  alise: ['撤销出刀', '撤回出刀', '取消出刀'],
   handler: service.deleteAttack,
 };
 
@@ -105,11 +106,29 @@ exports.getBox = {
 exports.addHomework = {
   label: '上传一份轴以供群员挑选',
   example: [
-    '上传轴 12刀哥暴打半血狂暴bishi 二阶段狂暴5王 32w-34w\n3星狼 4星狗 3星黄骑 4星黑骑 3星深月\n109 所有人开技能boss直接死\n108 没死再来一下他必死',
+    '上传轴 轴名称 狂暴B5 32w-34w\n3星狼 4星狗 3星黄骑 4星黑骑 3星深月\n这里写轴的具体内容或者直接贴链接. 可以自由发挥',
   ],
   alise: ['上传轴', '上传作业', '导入轴', '录入轴'],
   handler: service.addHomework,
 }
+
+exports.addFightHistory = {
+  label: '录入pvp的结果, 胜利队伍在前',
+  example: [
+    `录入战绩 星法 臭鼬 毛二力 兔剑 偶像 星法 猫剑 偶像 抖M 布丁\n毛二力 狼 偶像 狗 黑骑 星法 猫剑 偶像 抖M 布丁\n星法 猫剑 偶像 抖M 布丁 xcw 星法 中二 猫剑 偶像\n姐姐 猫剑 偶像 抖M 布丁 姐姐 狼 狗 黑骑 布丁`,
+  ],
+  alise: ['录入战斗', '录入战绩'],
+  handler: service.addFightHistory,
+}
+
+// exports.beatTeam = {
+//   label: '根据你的box查找指定敌方队伍的最优解法',
+//   example: [
+//     '',
+//   ],
+//   alise: ['录入战斗', '录入战绩'],
+//   handler: service.addFightHistory,
+// }
 
 exports.getHomework = {
   label: '根据轴名看轴的详情',

@@ -64,8 +64,14 @@ exports.attack = async function (message, sender) {
 }
 
 exports.deleteAttack = async function (message, sender) {
-  if (message) return;
-  let attackList = await mongo.Damage.find({ group_id: sender.group_id, user_id: sender.user_id }).sort({ date: -1 }).limit(1).toArray();
+  let realSender = sender;
+  if (message) message = message.split(' ').filter(el => el)[0];
+  if (message && await utils.isAdmin(sender.group_id, sender.user_id)) {
+    let attacker = message.match(/^\[cq:at,qq=([0-9]+)\]$/);
+    if (!attacker) return;
+    realSender = await utils.findOrCreateGroupUser(sender.group_id, Number(attacker[1]));
+  };
+  let attackList = await mongo.Damage.find({ group_id: sender.group_id, user_id: realSender.user_id }).sort({ date: -1 }).limit(1).toArray();
 
   if (attackList.length) {
     await mongo.Damage.deleteOne({ _id: attackList[0]._id });
@@ -133,6 +139,7 @@ exports.dailyReport = async function (message, sender) {
   if (!userList.length) return '尚无工会成员出刀';
   for (let user_id of Object.keys(attackObject)) {
     let userInfo = userList.find(el => el.user_id === Number(user_id));
+    if (!userInfo) continue;
 
     let dailyAttackInfo = {
       user_id: userInfo.user_id,
@@ -151,7 +158,7 @@ exports.dailyReport = async function (message, sender) {
 
   let leftAttackList = userList.filter(user => {
     let attackInfo = attackInfoList.find(info => info.user_id === user.user_id);
-    return !attackInfo || attackInfo.leftTimes;
+    return !attackInfo || attackInfo.leftTimes > 0;
   }).map(user => {
     let attackInfo = attackInfoList.find(info => info.user_id === user.user_id);
     return `[CQ:at,qq=${user.user_id}]: 剩余${attackInfo ? attackInfo.leftTimes : 3}刀`
@@ -159,7 +166,7 @@ exports.dailyReport = async function (message, sender) {
 
   return [
     `当前工会成员共有${userList.length}人`,
-    ...attackInfoList.sort((a, b) => b.point - a.point).map(dailyAttackInfo => `${dailyAttackInfo.username}: ${dailyAttackInfo.memberAttackTimes}刀${dailyAttackInfo.tailAttackTimes ? `与${dailyAttackInfo.tailAttackTimes}刀尾刀` : ''} 共计伤害: ${dailyAttackInfo.damage} 共计得分: ${dailyAttackInfo.point}`),
+    ...attackInfoList.sort((a, b) => b.point - a.point).map(dailyAttackInfo => `${dailyAttackInfo.username}: ${dailyAttackInfo.memberAttackTimes}刀${dailyAttackInfo.tailAttackTimes ? `与${dailyAttackInfo.tailAttackTimes}刀尾刀` : ''} 共计伤害: ${dailyAttackInfo.damage} 共计得分: ${Number.parseFloat(dailyAttackInfo.point).toFixed(1)}`),
     leftAttackList.length ? '以下成员没有出完今日的刀' : '',
     ...leftAttackList,
   ].join('\n');
@@ -267,12 +274,29 @@ exports.addHomework = async function (message, sender) {
   if (homework && (homework.submittedBy !== sender.user_id || homework.group_id !== sender.group_id)) return `已存在名为 ${baseInfoList[0]} 的轴`;
   homeworkBody.name = baseInfoList[0];
 
+  let bossInfo = {};
+  let stageAlpha = ['index_fix', 'a', 'b', 'c', 'd'];
+
   baseInfoList[1] = utils.replaceChinese(baseInfoList[1]);
-  let bossInfo = baseInfoList[1].match(/^([0-9]+)阶段(.*)([0-9]+)王$/);
-  if (!bossInfo) return 'boss 信息不全, 请输入 help 上传轴 参照其中的格式进行提交'
-  homeworkBody.boss.stage = Number(bossInfo[1]);
-  homeworkBody.boss.type = bossInfo[2] ? bossInfo[2] : '普通';
-  homeworkBody.boss.number = Number(bossInfo[3]);
+
+  let temp = baseInfoList[1].match(/([1-9]{1})阶段/);
+  if (temp) bossInfo.stage = Number(temp[1]);
+  temp = baseInfoList[1].match(/([abcd]{1})面/);
+  if (temp) bossInfo.stage = stageAlpha.findIndex(el => el === temp[1]);
+  temp = baseInfoList[1].match(/([abcd]{1})([1-5]{1})/);
+  if (temp) {
+    bossInfo.stage = stageAlpha.findIndex(el => el === temp[1]);
+    bossInfo.number = Number(temp[2]);
+  }
+  temp = baseInfoList[1].match(/([1-5]{1})王/);
+  if (temp) bossInfo.Number = Number(temp[1]);
+  temp = baseInfoList[1].match(/([1-5]{1})号/);
+  if (temp) bossInfo.Number = Number(temp[1]);
+  temp = baseInfoList[1].match(/狂暴/);
+  bossInfo.type = temp ? '狂暴' : '普通';
+
+  if (!bossInfo.stage || !bossInfo.type || !bossInfo.number) return 'boss 信息不全, 请输入 help 上传轴 参照其中的格式进行提交'
+  homeworkBody.boss = bossInfo;
 
   baseInfoList[2] = utils.replaceChinese(baseInfoList[2]);
   let damageInfo = baseInfoList[2].split('-').map(damage => Math.floor(Number(damage)));
@@ -292,6 +316,35 @@ exports.addHomework = async function (message, sender) {
   await mongo.Homework.insertOne(homeworkBody);
 
   return `${homeworkBody.boss.type}形态${homeworkBody.boss.stage}阶段${homeworkBody.boss.number}王轴 ${homeworkBody.name} 已成功${homework ? '替换' : '上传'}.`
+}
+
+exports.addFightHistory = async function (message, sender) {
+  let fightList = message.split('\n').filter(el => el);
+
+  for (let fightMessage of fightList) {
+    let messageList = fightMessage.split(' ').filter(el => el);
+    if (messageList.length !== 10) return;
+
+    let roleIdList = []
+    let unknownRoleList = []
+    for (let roleMessage of messageList) {
+      let role = utils.whoIs(roleMessage);
+      if (!role) {
+        unknownRoleList.push(roleMessage);
+        continue;
+      }
+      roleIdList.push(role.id);
+    }
+    if (unknownRoleList.length) return '不识别的角色名: ' + unknownRoleList.join(', ');
+
+    await mongo.FightHistory.insertOne({
+      date: new Date(),
+      winRoleList: roleIdList.slice(0, 5),
+      loseRoleList: roleIdList.slice(5),
+    });
+  }
+
+  return 'ok';
 }
 
 exports.getHomework = async function (message, sender) {

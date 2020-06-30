@@ -385,6 +385,7 @@ exports.checkAttack = checkAttack;
  * @returns {Role} 角色信息
  */
 let whoIs = (nickname) => {
+  nickname = nickname.trim();
   let role = roleData.find(role => role.nicknames.map(el => el.toLowerCase()).includes(nickname.toLowerCase()));
   if (!role) return;
   return _.cloneDeep(role);
@@ -524,8 +525,8 @@ function replaceChinese(message) {
   message = message.replace(/八/g, '8');
   message = message.replace(/九/g, '9');
   message = message.replace(/十/g, '10');
-  message = message.replace(/([0-9]+)[\.]{0,1}([0-9]*)[wW]/g, (r, $1, $2) => $1 + $2.padEnd(4, '0'));
   message = message.replace(/([0-9]+)[\.]{0,1}([0-9]*)[kK]/g, (r, $1, $2) => $1 + $2.padEnd(3, '0'));
+  message = message.replace(/([0-9]+)[\.]{0,1}([0-9]*)[wW]/g, (r, $1, $2) => $1 + $2.padEnd(4, '0'));
   message = message.replace(/([0-9]+)[\.]{0,1}([0-9]*)[mM]/g, (r, $1, $2) => $1 + $2.padEnd(6, '0'));
 
   return message;

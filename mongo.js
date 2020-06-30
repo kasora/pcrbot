@@ -26,6 +26,7 @@ let mongoConnect = async () => {
     exports.User = _db.collection('user');
     exports.TempData = _db.collection('tempData');
     exports.Homework = _db.collection('homework');
+    exports.FightHistory = _db.collection('fightHistory');
     exports.attackQuery = _db.collection('attackQuery');
     exports.Damage = _db.collection('damage');
     exports.Group = _db.collection('group');
@@ -99,6 +100,12 @@ bossInfo: {
 type // team_time: 工会战开始 team_onTree: 挂树 news: 新闻更新
 date
 data
+*/
+
+/** FightHistory
+date // 战绩上传时间
+winRoleList Array<id> // 胜利方阵容
+loseRoleList Array<id> // 失败方阵容
 */
 
 /* Homework
