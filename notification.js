@@ -27,7 +27,7 @@ const sendNews = async () => {
   let fullNewsList = opt.elements[0].elements[0].elements
     .filter(el => el.name === 'item')
     .map(el => ({
-      message: el.elements.find(n => n.name === 'description').elements[0].cdata.split('<br>')[0],
+      message: el.elements.find(n => n.name === 'description').elements[0].cdata.replace(/\<img.*?\>/g, '').split('<br>')[0],
       id: el.elements.find(n => n.name === 'guid').elements[0].text,
       date: new Date(el.elements.find(n => n.name === 'pubDate').elements[0].text),
     }));

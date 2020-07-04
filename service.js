@@ -289,9 +289,9 @@ exports.addHomework = async function (message, sender) {
     bossInfo.number = Number(temp[2]);
   }
   temp = baseInfoList[1].match(/([1-5]{1})王/);
-  if (temp) bossInfo.Number = Number(temp[1]);
+  if (temp) bossInfo.number = Number(temp[1]);
   temp = baseInfoList[1].match(/([1-5]{1})号/);
-  if (temp) bossInfo.Number = Number(temp[1]);
+  if (temp) bossInfo.number = Number(temp[1]);
   temp = baseInfoList[1].match(/狂暴/);
   bossInfo.type = temp ? '狂暴' : '普通';
 
