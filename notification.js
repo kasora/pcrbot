@@ -27,7 +27,10 @@ const sendNews = async () => {
   let fullNewsList = opt.elements[0].elements[0].elements
     .filter(el => el.name === 'item')
     .map(el => ({
-      message: el.elements.find(n => n.name === 'description').elements[0].cdata.replace(/\<img.*?\>/g, '').split('<br>')[0],
+      message: el.elements.find(n => n.name === 'description').elements[0].cdata
+        .split(/(\/\/\@|\/\/转发自)/g)[0]
+        .replace(/\<br\>/g, '')
+        .replace(/\<img.*?src="(.*?)".*?\>/g, (match, p1) => `[CQ:image,file=${p1}]`),
       id: el.elements.find(n => n.name === 'guid').elements[0].text,
       date: new Date(el.elements.find(n => n.name === 'pubDate').elements[0].text),
     }));
@@ -35,6 +38,12 @@ const sendNews = async () => {
     type: 'news',
     "data.id": { $in: fullNewsList.map(news => news.id) },
   }).toArray();
+
+  if (!config.coolq.isPro) {
+    fullNewsList.map(el => {
+      el.message = el.message.replace(/\[CQ:image.*?\]/g, '');
+    });
+  }
 
   // 同步推送到镜像
   let archiveDiff = _.differenceBy(fullNewsList, archiveList.map(archive => archive.data), el => el.id);
