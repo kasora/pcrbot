@@ -2,7 +2,6 @@ exports = module.exports = {
   coolq: {
     host: 'localhost', // 这里填的是 coolq-http-api 部署的机器 ip 或域名
     port: 5800, // 这里填的是 coolq-http-api 部署的端口
-    isPro: false, // 是否购买了coolq pro的授权?
   },
 
   mongo: { // 保存一些成员信息

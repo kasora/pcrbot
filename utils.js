@@ -46,14 +46,84 @@ exports.getCommand = getCommand;
 //#region coolq http api
 
 const sendMessage = async (messageBody) => {
-  let agentRes = await agent.post(`${config.coolq.host}:${config.coolq.port}/send_msg`).send(messageBody);
-  if (agentRes.body.status !== 'ok') {
-    console.error(`发送消息给 ${messageBody.user_id} 失败.`)
-    let newError = new Error();
-    error.resp = agentRes.body;
-    error.resp.user_id = messageBody.user_id;
-    error.resp.group_id = messageBody.group_id;
-    throw newError;
+  let MAXLENGTH = 500;
+  let message = messageBody.message;
+  let messageList = message.split('\n');
+  let pictureRegex = /\[CQ:image.*?\]/g;
+
+  let tempMessageList = [];
+  let tempMessage = '';
+
+  for (let messageLine of messageList) {
+    tempMessage = messageLine;
+    while (tempMessage.search(pictureRegex) !== -1) {
+      let pictureIndex = tempMessage.search(pictureRegex);
+      let pictureLength = tempMessage.match(pictureRegex)[0].length;
+      tempMessageList.push(tempMessage.slice(0, pictureIndex));
+      tempMessageList.push(tempMessage.slice(pictureIndex, pictureIndex + pictureLength));
+      tempMessage = tempMessage.slice(pictureIndex + pictureLength);
+    }
+    tempMessageList.push(tempMessage);
+  }
+
+  messageList = tempMessageList;
+
+  tempMessageList = [];
+  tempMessage = '';
+  let tempLength = 0;
+
+  // 按行切割消息
+  for (let messageLine of messageList) {
+    // 图片直接填充
+    if (messageLine.search(pictureRegex) !== -1) {
+      tempMessage += messageLine;
+      continue;
+    }
+
+    // 单行超长则切割该行
+    if (messageLine.length > MAXLENGTH) {
+      // 先前的缓存入队
+      if (tempLength) tempMessageList.push(tempMessage);
+      tempMessage = '';
+      tempLength = 0;
+
+      while (messageLine.length > MAXLENGTH) {
+        let temp = messageLine.slice(0, MAXLENGTH);
+        messageLine = messageLine.slice(MAXLENGTH);
+
+        tempMessageList.push(temp);
+      }
+      if (messageLine.length) {
+        tempMessage = messageLine;
+        tempLength = tempMessage.length;
+      }
+    } else {
+      if (tempLength + messageLine.length > MAXLENGTH) {
+        tempMessageList.push(tempMessage);
+        tempMessage = messageLine;
+        tempLength = tempMessage.length;
+      } else {
+        tempMessage = [tempMessage, messageLine].filter(el => el).join('\n');
+        tempLength += messageLine.length + 1;
+      }
+    }
+  }
+  if (tempMessage.length) tempMessageList.push(tempMessage);
+  tempMessageList = tempMessageList.filter(el => el);
+
+  // 分片发送消息
+  for (let messageLine of tempMessageList) {
+    let agentRes = await agent
+      .post(`${config.coolq.host}:${config.coolq.port}/send_msg`)
+      .send(Object.assign({}, messageBody, { message: messageLine }));
+    if (agentRes.body.status !== 'ok') {
+      console.error(`发送消息给 ${messageBody.user_id || messageBody.group_id} 失败. 消息片段为:\n ${messageLine}`)
+      let newError = new Error();
+      newError.resp = agentRes.body;
+      newError.resp.user_id = messageBody.user_id;
+      newError.resp.group_id = messageBody.group_id;
+      throw newError;
+    }
   }
 }
 exports.sendMessage = sendMessage;
@@ -269,6 +339,41 @@ let getBoss = async (groupId) => {
   return opt;
 }
 exports.getBoss = getBoss;
+
+/**
+ * 计算传入的字符串中描述的
+ * 
+ * @param {Number} groupId 群号
+ * @returns {Promise<BossInfo>} boss 状态
+ */
+let getBossByMessage = async (bossMessage) => {
+  let bossInfo = {};
+  let stageAlpha = ['index_fix', 'a', 'b', 'c', 'd'];
+
+  bossMessage = replaceChinese(bossMessage.toLowerCase().replace(' ', ''));
+
+  let temp = bossMessage.match(/([1-9]{1})阶段/);
+  if (temp) bossInfo.stage = Number(temp[1]);
+  temp = bossMessage.match(/([abcd]{1})面/);
+  if (temp) bossInfo.stage = stageAlpha.findIndex(el => el === temp[1]);
+  temp = bossMessage.match(/([abcd]{1})([1-5]{1})/);
+  if (temp) {
+    bossInfo.stage = stageAlpha.findIndex(el => el === temp[1]);
+    bossInfo.number = Number(temp[2]);
+  }
+  temp = bossMessage.match(/([1-5]{1})王/);
+  if (temp) bossInfo.number = Number(temp[1]);
+  temp = bossMessage.match(/([1-5]{1})号/);
+  if (temp) bossInfo.number = Number(temp[1]);
+  temp = bossMessage.match(/狂暴/);
+  bossInfo.type = temp ? '狂暴' : '普通';
+
+  temp = bossMessage.match(/(?<![a-zA-Z])([0-9]{4,})(?![(王|号|boss|阶段|面)])/);
+  if (temp) bossInfo.hp = Number(temp[1]);
+
+  return bossInfo;
+}
+exports.getBossByMessage = getBossByMessage;
 
 /**
  * 获取指定 boss 状态需要伤害总额

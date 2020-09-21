@@ -18,15 +18,14 @@
 tips: 如果文档不匹配请使用 `help` 指令查看所有支持的指令
 
 ## 搭建
-- 搭建 coolq-http-api 的环境。推荐使用 Docker。参照[这里](https://cqhttp.cc/docs/4.10/#/Docker)
-- 根据你在 Docker 中传入的参数，对应的修改 `config.example.js`，并将其改名为 `config.js`
+- 搭建 [Mirai](https://github.com/mamoe/mirai) 框架, 推荐使用 [MiraiOK](https://github.com/LXY1226/MiraiOK)
+- 搭建 [cqhttp-mirai](https://github.com/yyuueexxiinngg/cqhttp-mirai) 环境
 - 安装 MongoDB，请自行查询安装方式。并将 MongoDB 的参数给入 `config.js`
 - `npm install`
 - `npm start`
 - 将你的 bot 拉入群，输入 `help` 查看是否正常运行
 
-tips: 
-- `coolq` 可以参照 `docker_reboot.example.sh` 进行 docker 搭建
+tips:
 - 可以使用 [pm2](https://github.com/Unitech/pm2) 来使 bot 后台运行. 参考脚本: `npm i pm2 -g && pm2 start npm --name "pcr" --time -- start`
 
 ## 开源协议
